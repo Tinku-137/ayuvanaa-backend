@@ -1,54 +1,97 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
+import logging
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
-# CORS setup to allow frontend on ayuvanaa.com
+# CORS setup to allow frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://ayuvanaa.com"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Google Sheet setup
-SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+# Google Sheets setup
+SCOPE = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive",
+]
 CREDS = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", SCOPE)
 gc = gspread.authorize(CREDS)
-sheet = gc.open("Ayuvanaa User Data").sheet1  # Change to your sheet name
+
+# Main registration sheet
+general_sheet = gc.open("Ayuvanaa User Data").sheet1
+# Reminders sheet
+reminders_sheet = gc.open("Ayuvanaa User Data").worksheet("Ayuvanaa Reminders Sheet")
 
 @app.post("/submit-registration")
 async def submit_registration(request: Request):
     try:
         form = await request.form()
-        form = dict(form)
+        data = dict(form)
 
-        values = [
-            form.get("name", ""),
-            form.get("age", ""),
-            form.get("gender", ""),
-            form.get("phone", ""),
-            form.get("language", ""),
-            form.get("wake_time", ""),
-            form.get("sleep_time", ""),
-            form.get("exercise_time", ""),
-            form.get("breakfast_time", ""),
-            form.get("lunch_time", ""),
-            form.get("dinner_time", ""),
-            form.get("medicine_times", ""),
-            form.get("medicine_reason", ""),
-            form.get("health_condition", ""),
-            form.get("others", ""),
-            "Yes" if form.get("consent") else "No",
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Save full data to general sheet
+        general_values = [
+            data.get("name", ""),
+            data.get("age", ""),
+            data.get("gender", ""),
+            data.get("phone", ""),
+            data.get("language", ""),
+            data.get("wake_time", ""),
+            data.get("sleep_time", ""),
+            data.get("exercise_time", ""),
+            data.get("breakfast_time", ""),
+            data.get("lunch_time", ""),
+            data.get("dinner_time", ""),
+            data.get("medicine_times", ""),
+            data.get("medicine_reason", ""),
+            data.get("health_condition", ""),
+            data.get("others", ""),
+            "Yes" if data.get("consent") else "No",
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ]
+        general_sheet.append_row(general_values)
 
-        sheet.append_row(values)
-        return {"status": "success", "message": "User data saved successfully."}
+        # Prepare reminders data
+        name = data.get("name", "")
+        phone = data.get("phone", "")
+        wake_time = data.get("wake_time", "")
+        sleep_time = data.get("sleep_time", "")
+        exercise_time = data.get("exercise_time", "")
+        breakfast_time = data.get("breakfast_time", "")
+        lunch_time = data.get("lunch_time", "")
+        dinner_time = data.get("dinner_time", "")
+        medicine_times = data.get("medicine_times", "")
+
+        # Initial next message times same as user preferences
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        rem_values = [
+            name,
+            phone,
+            wake_time,
+            sleep_time,
+            exercise_time,
+            breakfast_time,
+            lunch_time,
+            dinner_time,
+            medicine_times,
+            wake_time,       # next_wake_msg_time
+            sleep_time,      # next_sleep_msg_time
+            medicine_times,  # next_medicine_msg_time (could parse first time)
+            now,             # last_msg_sent
+            "pending",      # status
+        ]
+        reminders_sheet.append_row(rem_values)
+
+        return {"status": "success", "message": "User registered successfully."}
+
     except Exception as e:
-        print("Error:", e)
-        return {"status": "error", "message": "Failed to save user data."}
+        logging.error(f"Error in registration: {e}")
+        return {"status": "error", "message": str(e)}
