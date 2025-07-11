@@ -90,6 +90,7 @@ async def submit_registration(request: Request):
         ]
         reminders_sheet.append_row(rem_values)
 
+        print("✅ Data saved and reminder added")
         return {"status": "success", "message": "User registered successfully."}
 
     except Exception as e:
