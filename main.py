@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from datetime import datetime
 import logging
 import gspread
@@ -84,15 +85,21 @@ async def submit_registration(request: Request):
             medicine_times,
             wake_time,       # next_wake_msg_time
             sleep_time,      # next_sleep_msg_time
-            medicine_times,  # next_medicine_msg_time (could parse first time)
+            medicine_times,  # next_medicine_msg_time
             now,             # last_msg_sent
-            "pending",      # status
+            "pending",       # status
         ]
         reminders_sheet.append_row(rem_values)
 
-        print("✅ Data saved and reminder added")
-        return {"status": "success", "message": "User registered successfully."}
+        logging.info("✅ Data saved and reminder added")
+        return JSONResponse(
+            status_code=200,
+            content={"status": "success", "message": "User registered successfully."}
+        )
 
     except Exception as e:
         logging.error(f"Error in registration: {e}")
-        return {"status": "error", "message": str(e)}
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
